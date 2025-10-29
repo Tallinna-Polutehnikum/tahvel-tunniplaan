@@ -143,8 +143,8 @@
   //   Access-Control-Allow-Origin: *
   //   Access-Control-Allow-Headers: *
   //   Access-Control-Allow-Methods: *
-  // Examples below (Cloudflare Worker / Express) – see README note in code.
-  const PROXY = 'https://tahvel-tunniplaan-proxy.azurewebsites.net/';
+  // Look for tahvel-tunniplaan-proxy repository for more info
+  const PROXY = 'https://tahvel-tunniplaan-proxy.azurewebsites.net/api/proxy';
   const prox = (url) => PROXY ? `${PROXY}?url=${encodeURIComponent(url)}` : url;
 
   // --- Elements
