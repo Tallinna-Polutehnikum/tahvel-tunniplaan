@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="et">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tunniplaan · Tahvel</title>
+  <style>
+    :root{
+      --bg: #0f172a;        /* slate-900 */
+      --card: #111827;      /* gray-900 */
+      --muted: #94a3b8;     /* slate-400 */
+      --text: #e5e7eb;      /* gray-200 */
+      --accent: #8b5cf6;    /* violet-500 */
+      --accent-2: #a78bfa;  /* violet-400 */
+      --today-bg: #f3e8ff;  /* violet-50 */
+      --chip: #1f2937;      /* gray-800 */
+      --chip-muted: #334155;/* slate-700 */
+      --ring: #22d3ee;      /* cyan-400 */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Noto Sans, "Apple Color Emoji","Segoe UI Emoji";
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    a{color:inherit}
+    .wrap{max-width:900px; margin-inline:auto; padding:16px;}
+
+    /* Header */
+    header{display:flex; gap:12px; align-items:center; justify-content:space-between;}
+    .brand{display:flex; align-items:center; gap:10px}
+    .logo{inline-size:28px; block-size:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),#06b6d4);}
+    h1{font-size:18px; margin:0}
+
+    /* Controls */
+    .controls{display:grid; grid-template-columns:1fr auto auto; gap:10px; margin-top:12px}
+    @media(min-width:720px){ .controls{grid-template-columns:1.2fr auto auto auto} }
+
+    .group{position:relative}
+    .group input{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:var(--text);
+      outline:none; transition: box-shadow .15s ease, border-color .15s ease;
+    }
+    .group input:focus{ box-shadow:0 0 0 3px rgba(34,211,238,.25); border-color:var(--ring) }
+    .clear-btn{
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      background:transparent; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:4px; display:none;
+    }
+    .group.has-value .clear-btn{display:block}
+
+    .suggest{
+      position:absolute; inset-inline:0; top:calc(100% + 6px); background:#0b1220; border:1px solid #334155; border-radius:12px; overflow:hidden; z-index:20; max-height:300px; overflow-y:auto; display:none;
+    }
+    .suggest.show{display:block}
+    .suggest li{ list-style:none; padding:10px 12px; cursor:pointer; border-bottom:1px solid #111827;}
+    .suggest li:last-child{border-bottom:none}
+    .suggest li:hover, .suggest li.active{ background:#111827 }
+    .suggest small{ color:var(--muted) }
+
+    .btn{ padding:10px 14px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:var(--text); cursor:pointer; }
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
+    .btn.primary{ background:linear-gradient(135deg,var(--accent),var(--accent-2)); border:none }
+    .toggle{ display:flex; gap:8px }
+
+    .week-range{ align-self:center; font-size:14px; color:var(--muted) }
+
+    /* Day chips */
+    .days{ display:flex; gap:6px; margin-top:14px; overflow:auto; padding-bottom:4px }
+    .chip{ padding:8px 10px; background:var(--chip); border:1px solid #334155; border-radius:999px; font-weight:600; font-size:14px; display:flex; gap:10px; align-items:center }
+    .chip .letter{ font-size:16px; width:22px; text-align:center }
+    .chip .date{ color:var(--muted); font-weight:500 }
+    .chip.active{ outline:2px solid var(--accent); outline-offset:2px; background:#1a1033; }
+
+    /* Lessons */
+    .empty{ color:var(--muted); padding:14px; text-align:center; border:1px dashed #334155; border-radius:14px; margin-top:10px }
+
+    .grid{ display:grid; gap:10px; margin-top:10px }
+    .lesson{
+      background:var(--card); border:1px solid #1f2937; border-radius:16px; padding:12px; display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:start;
+    }
+    .lesson.today{ background: var(--today-bg); color:#1f2937; border-color:#e9d5ff }
+    .time{ font-variant-numeric: tabular-nums; font-weight:700; }
+    .meta{ display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:13px }
+    .subject{ font-weight:700; font-size:15px }
+
+    /* Desktop refinements */
+    @media(min-width:720px){
+      .lesson{ grid-template-columns:140px 1fr }
+      .subject{ font-size:16px }
+    }
+
+    footer{margin:24px 0 8px; color:var(--muted); font-size:12px; text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>Mobiilne Tunniplaan</h1>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="group" id="groupBox">
+        <input id="groupInput" type="text" placeholder="Vali õpperühm…" autocomplete="off" aria-autocomplete="list" aria-expanded="false" />
+        <button class="clear-btn" id="clearGroup" title="Puhasta">×</button>
+        <ul class="suggest" id="suggest"></ul>
+      </div>
+      <div class="week-range" id="weekRange"> </div>
+      <div class="toggle">
+        <button class="btn" id="btnToday">Täna</button>
+        <button class="btn primary" id="btnWeek">Nädal</button>
+      </div>
+    </div>
+
+    <div class="days" id="dayChips" aria-label="Nädalapäevad"></div>
+
+    <div class="grid" id="lessons"></div>
+
+    <div class="empty" id="empty" hidden>Vali õpperühm, et näha tunniplaani.</div>
+
+    <footer>
+      Andmed: Tahvel (TP) API · Fookus: mobiil · Ei tee taustal uusi päringuid režiimivahetusel
+    </footer>
+  </div>
+
+<script>
+(function(){
+  const API = {
+    groupSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/group/14?lang=ET&name=${encodeURIComponent(q)}`,
+    timetable: ({from, thru, groupUuid}) => (
+      `https://tahveltp.edu.ee/hois_back/timetableevents/timetableSearch?`+
+      `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=14&size=200&studentGroups=${encodeURIComponent(groupUuid)}&thru=${encodeURIComponent(thru)}`
+    ),
+  };
+
+  // CORS bypass via your own proxy. If the API doesn't include CORS headers,
+  // set PROXY to a server you control that forwards the request and adds
+  // appropriate CORS headers. The proxy should accept `?url=` and return the
+  // target response with headers:
+  //   Access-Control-Allow-Origin: *
+  //   Access-Control-Allow-Headers: *
+  //   Access-Control-Allow-Methods: *
+  // Examples below (Cloudflare Worker / Express) – see README note in code.
+  const PROXY = 'https://tahvel-tunniplaan-proxy.azurewebsites.net/';
+  const prox = (url) => PROXY ? `${PROXY}?url=${encodeURIComponent(url)}` : url;
+
+  // --- Elements
+  const groupInput = document.getElementById('groupInput');
+  const suggest = document.getElementById('suggest');
+  const groupBox = document.getElementById('groupBox');
+  const clearGroup = document.getElementById('clearGroup');
+  const lessonsEl = document.getElementById('lessons');
+  const emptyEl = document.getElementById('empty');
+  const weekRangeEl = document.getElementById('weekRange');
+  const chipsEl = document.getElementById('dayChips');
+  const btnToday = document.getElementById('btnToday');
+  const btnWeek = document.getElementById('btnWeek');
+
+  // --- State
+  const LS_KEY = 'tahvel.group';
+  let selectedGroup = null; // { uuid, name }
+  let rawEvents = [];       // full week payload
+  let viewMode = 'week';    // 'today' | 'week'
+  let activeDayIdx = null;  // 0..6 (Mon..Sun) when in 'today' mode we set to today's index
+
+  // --- Dates: week (Mon-Sun) in UTC to match 'Z' examples
+  function toTallinn(date){ return new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' })); }
+  function getWeek(date){
+    // Get Monday of this week based on Tallinn time
+    const t = toTallinn(date);
+    const day = (t.getDay()+6)%7; // 0=Mon..6=Sun
+    const mon = new Date(t); mon.setDate(t.getDate()-day); mon.setHours(0,0,0,0);
+    const sun = new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
+    return { mon, sun };
+  }
+  function fmtRange(mon, sun){
+    const f = (d)=> d.toLocaleDateString('et-EE',{day:'2-digit',month:'2-digit'});
+    return `${f(mon)} – ${f(sun)}`;
+  }
+  function isoZ(d){ // exact format with ms & Z
+    const pad=n=>String(n).padStart(2,'0');
+    const yyyy=d.getUTCFullYear();
+    const mm=pad(d.getUTCMonth()+1);
+    const dd=pad(d.getUTCDate());
+    const HH=pad(d.getUTCHours());
+    const MM=pad(d.getUTCMinutes());
+    const SS=pad(d.getUTCSeconds());
+    const MS=String(d.getUTCMilliseconds()).padStart(3,'0');
+    return `${yyyy}-${mm}-${dd}T${HH}:${MM}:${SS}.${MS}Z`;
+  }
+
+  // --- UI: Day chips (E,T,K,N,R,L,P)
+  const DAY_LETTERS = ['E','T','K','N','R','L','P'];
+  function renderChips(mon){
+    chipsEl.innerHTML = '';
+    for(let i=0;i<7;i++){
+      const d = new Date(mon); d.setDate(mon.getDate()+i);
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.setAttribute('data-idx', String(i));
+      chip.innerHTML = `<span class="letter">${DAY_LETTERS[i]}</span><span class="date">${d.toLocaleDateString('et-EE',{day:'2-digit',month:'2-digit'})}</span>`;
+      chip.addEventListener('click',()=>{ viewMode='today'; activeDayIdx=i; updateView(); });
+      chipsEl.appendChild(chip);
+    }
+  }
+  function markActiveChip(){
+    [...chipsEl.children].forEach((el,idx)=>{
+      el.classList.toggle('active', viewMode==='today' && idx===activeDayIdx);
+    });
+  }
+
+  // --- Lessons rendering
+  function byStart(a,b){ return new Date(a.startDate||a.start||a.dateStart) - new Date(b.startDate||b.start||b.dateStart); }
+  function normalizeEvent(ev){
+    // Try multiple common field names defensively
+    const start = new Date(ev.startDate || ev.start || ev.startTime || ev.dateTimeStart || ev.dateStart || ev.begin);
+    const end   = new Date(ev.endDate   || ev.end   || ev.endTime   || ev.dateTimeEnd   || ev.dateEnd   || ev.finish);
+    const subject = ev.name || ev.subject || ev.course || ev.title || ev.subjectName || (ev.lesson && ev.lesson.name) || 'Aine';
+    const room = (ev.rooms?.[0]?.roomCode) || ev.room || ev.location || ev.roomName || '';
+    const teachers = (ev.teachers?.map(t=> t.fullName || `${t.firstName||''} ${t.lastName||''}`.trim()).filter(Boolean) || []);
+    const teacher = teachers[0] || ev.teacher || '';
+    return { start, end, subject, room, teacher, raw:ev };
+  }
+  function sameDayTallinn(a,b){
+    const at = toTallinn(a), bt = toTallinn(b);
+    return at.getFullYear()===bt.getFullYear() && at.getMonth()===bt.getMonth() && at.getDate()===bt.getDate();
+  }
+  function isTodayTallinn(d){ return sameDayTallinn(d, new Date()); }
+
+  function renderLessons(){
+    lessonsEl.innerHTML='';
+    const list = rawEvents.map(normalizeEvent).sort(byStart);
+
+    let filtered = list;
+    if(viewMode==='today'){
+      const mon = week._mon; // from outer scope
+      const d = new Date(mon); d.setDate(mon.getDate()+activeDayIdx);
+      filtered = list.filter( ev => sameDayTallinn(ev.start, d) );
+    }
+
+    if(filtered.length===0){
+      const div=document.createElement('div');
+      div.className='empty';
+      div.textContent = selectedGroup? 'Sel päeval pole tunde.' : 'Vali õpperühm, et näha tunniplaani.';
+      lessonsEl.appendChild(div);
+      return;
+    }
+
+    for(const ev of filtered){
+      const card=document.createElement('div');
+      const time = `${ev.start.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})}–${ev.end.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})}`;
+      const date = ev.start.toLocaleDateString('et-EE',{day:'2-digit',month:'2-digit'});
+      const isToday = viewMode==='week' && isTodayTallinn(ev.start);
+      card.className='lesson'+(isToday?' today':'');
+      card.innerHTML = `
+        <div class="time">
+          <div>${DAY_LETTERS[(toTallinn(ev.start).getDay()+6)%7]}</div>
+          <div>${date}</div>
+          <div>${time}</div>
+        </div>
+        <div>
+          <div class="subject">${escapeHtml(ev.subject)}</div>
+          <div class="meta">
+            ${ev.room? `<span>Ruum: ${escapeHtml(ev.room)}</span>`:''}
+            ${ev.teacher? `<span>Õpetaja: ${escapeHtml(ev.teacher)}</span>`:''}
+          </div>
+        </div>`;
+      lessonsEl.appendChild(card);
+    }
+  }
+
+  // --- Fetch timetable for current week
+  const week = (()=>{
+    const {mon, sun} = getWeek(new Date());
+    return {_mon:mon, _sun:sun, from: isoZ(new Date(Date.UTC(mon.getFullYear(),mon.getMonth(),mon.getDate(),0,0,0,0))), thru: isoZ(new Date(Date.UTC(sun.getFullYear(),sun.getMonth(),sun.getDate(),23,59,59,999)))};
+  })();
+  function updateWeekUI(){
+    weekRangeEl.textContent = fmtRange(week._mon, week._sun);
+    renderChips(week._mon);
+  }
+
+  async function loadTimetable(){
+    if(!selectedGroup) return;
+    setLoading(true);
+    try{
+      const url = prox(API.timetable({from: week.from, thru: week.thru, groupUuid: selectedGroup.uuid}));
+      const res = await fetch(url, { headers:{ 'Accept':'application/json' } });
+      if(!res.ok) throw new Error('Võrguviga: '+res.status);
+      const data = await res.json();
+      // Try common payload shapes
+      rawEvents = (Array.isArray(data)? data : (data.content || data.events || data.results || [])).filter(Boolean);
+      renderLessons();
+    }catch(err){
+      console.error(err);
+      rawEvents = [];
+      lessonsEl.innerHTML='';
+      const d=document.createElement('div'); d.className='empty';
+      d.innerHTML = 'Tunniplaani laadimine ebaõnnestus.
+<br/>
+Kui näed CORS viga, määra <code>PROXY</code> muutuja lehe alguses (vt kommentaar koodis) või testi arenduses CORS-bypassiga.<br/>
+Prod-keskkonnas on soovitus kasutada oma serveripoolset proksit.';
+      lessonsEl.appendChild(d);
+    }finally{
+      setLoading(false);
+    }
+  }
+
+  // Loading affordance
+  let loadingCount=0; function setLoading(on){
+    loadingCount += on?1:-1;
+    const busy = loadingCount>0;
+    document.body.style.cursor = busy? 'progress':'auto';
+    [btnToday, btnWeek, groupInput].forEach(el=> el.disabled = !!busy);
+  }
+
+  // --- Autocomplete
+  let acAbort = null; let acIdx=-1;
+  function showSuggest(items){
+    suggest.innerHTML='';
+    if(!items || !items.length){ suggest.classList.remove('show'); groupInput.setAttribute('aria-expanded','false'); return; }
+    items.forEach((it, i)=>{
+      const li=document.createElement('li');
+      li.innerHTML = `<div><strong>${escapeHtml(it.name||it.code||it.label||'Rühm')}</strong></div><small>${escapeHtml(it.studentGroup||it.studentGroupCode||'')}</small>`;
+      li.addEventListener('click',()=> selectGroup(it));
+      if(i===acIdx) li.classList.add('active');
+      suggest.appendChild(li);
+    });
+    suggest.classList.add('show');
+    groupInput.setAttribute('aria-expanded','true');
+  }
+  async function searchGroups(q){
+    if(acAbort) acAbort.abort(); acAbort = new AbortController();
+    if(!q || q.trim().length<2){ showSuggest([]); return; }
+    try{
+      const res = await fetch(prox(API.groupSearch(q.trim())), {signal: acAbort.signal, headers:{'Accept':'application/json'}});
+      if(!res.ok) throw new Error('Võrguviga');
+      const data = await res.json();
+      const list = (Array.isArray(data)? data : (data.content || data.results || []) ).map(row=>({
+        uuid: row.studentGroupUuid || row.uuid || row.id,
+        name: row.studentGroup || row.name || row.code || 'Rühm',
+      })).filter(x=> x.uuid);
+      acIdx=-1; showSuggest(list);
+    }catch(err){ if(err.name!=='AbortError'){ console.warn(err); showSuggest([]); } }
+  }
+  function selectGroup(item){
+    selectedGroup = { uuid:item.uuid, name:item.name };
+    localStorage.setItem(LS_KEY, JSON.stringify(selectedGroup));
+    groupInput.value = item.name; groupBox.classList.add('has-value');
+    showSuggest([]);
+    // Load once for the week; switching views filters locally
+    loadTimetable();
+  }
+
+  groupInput.addEventListener('input', (e)=>{
+    groupBox.classList.toggle('has-value', !!groupInput.value);
+    searchGroups(groupInput.value);
+  });
+  groupInput.addEventListener('keydown', (e)=>{
+    const items=[...suggest.children];
+    if(!items.length) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); acIdx = Math.min(items.length-1, acIdx+1); showSuggest(items.map(li=> li._data||{})); highlight(items); }
+    if(e.key==='ArrowUp'){ e.preventDefault(); acIdx = Math.max(0, acIdx-1); showSuggest(items.map(li=> li._data||{})); highlight(items); }
+    if(e.key==='Enter'){ e.preventDefault(); const li = items[acIdx]; if(li){ li.click(); } }
+  });
+  function highlight(items){ items.forEach((li,i)=> li.classList.toggle('active', i===acIdx)); }
+  clearGroup.addEventListener('click',()=>{
+    groupInput.value=''; groupBox.classList.remove('has-value'); selectedGroup=null; localStorage.removeItem(LS_KEY);
+    rawEvents=[]; renderLessons(); emptyEl.hidden=false;
+  });
+
+  // --- View toggles (no new network calls)
+  btnToday.addEventListener('click',()=>{ viewMode='today'; activeDayIdx = ( (toTallinn(new Date()).getDay()+6)%7 ); updateView(); });
+  btnWeek.addEventListener('click',()=>{ viewMode='week'; updateView(); });
+
+  function updateView(){
+    btnWeek.classList.toggle('primary', viewMode==='week');
+    btnToday.classList.toggle('primary', viewMode==='today');
+    markActiveChip();
+    renderLessons();
+  }
+
+  // --- Helpers
+  function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, s=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s])); }
+
+  // --- Init
+  (function init(){
+    updateWeekUI();
+    // Default to today chip
+    activeDayIdx = ( (toTallinn(new Date()).getDay()+6)%7 );
+    updateView();
+    // Restore group
+    try{
+      const saved = JSON.parse(localStorage.getItem(LS_KEY)||'null');
+      if(saved && saved.uuid){ selectedGroup=saved; groupInput.value=saved.name||''; groupBox.classList.add('has-value'); loadTimetable(); }
+      else { emptyEl.hidden=false; }
+    }catch{ emptyEl.hidden=false; }
+  })();
+})();
+</script>
+</body>
+</html>
