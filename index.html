@@ -12,7 +12,7 @@
       --text: #e5e7eb;      /* gray-200 */
       --accent: #8b5cf6;    /* violet-500 */
       --accent-2: #a78bfa;  /* violet-400 */
-      --today-bg: #f3e8ff;  /* violet-50 */
+      --today-bg: #240f3b;  /* violet-50 */
       --chip: #1f2937;      /* gray-800 */
       --chip-muted: #334155;/* slate-700 */
       --ring: #22d3ee;      /* cyan-400 */
@@ -63,12 +63,12 @@
     .btn.primary{ background:linear-gradient(135deg,var(--accent),var(--accent-2)); border:none }
     .toggle{ display:flex; gap:8px }
 
-    .week-range{ align-self:center; font-size:14px; color:var(--muted) }
+    .week-range{ display: none; align-self:center; font-size:14px; color:var(--muted) }
 
     /* Day chips */
-    .days{ display:flex; gap:6px; margin-top:14px; overflow:auto; padding-bottom:4px }
+    .days{ display:flex; gap:6px; margin-top:14px; overflow:auto; padding: 4px 0 }
     .chip{ padding:8px 10px; background:var(--chip); border:1px solid #334155; border-radius:999px; font-weight:600; font-size:14px; display:flex; gap:10px; align-items:center }
-    .chip .letter{ font-size:16px; width:22px; text-align:center }
+    .chip .letter{ font-size:16px; width:22px; text-align:center; color: var(--text); }
     .chip .date{ color:var(--muted); font-weight:500 }
     .chip.active{ outline:2px solid var(--accent); outline-offset:2px; background:#1a1033; }
 
@@ -77,20 +77,41 @@
 
     .grid{ display:grid; gap:10px; margin-top:10px }
     .lesson{
-      background:var(--card); border:1px solid #1f2937; border-radius:16px; padding:12px; display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:start;
+      background:var(--card); border:1px solid #1f2937; border-radius:16px; padding:12px; display:grid; grid-template-columns:auto auto 1fr; gap:10px; align-items:start;
     }
-    .lesson.today{ background: var(--today-bg); color:#1f2937; border-color:#e9d5ff }
+    .lesson.today{ background: var(--today-bg); } /* keep bg only; border stays default */
+    .weekday{
+      font-size:20px; font-weight:700; width:32px; height:32px; line-height:32px; text-align:center; border-radius:8px;
+      background: #334155; color: var(--text);
+      margin-top: 3px;
+    }
     .time{ font-variant-numeric: tabular-nums; font-weight:700; }
     .meta{ display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:13px }
     .subject{ font-weight:700; font-size:15px }
 
+    /* Highlight border for current/upcoming (today) */
+    .lesson.is-current{ border-color: var(--accent-2); }
+    /*.lesson.is-upcoming{ border-color: #7c86a2; } */
+
     /* Desktop refinements */
     @media(min-width:720px){
-      .lesson{ grid-template-columns:140px 1fr }
+      .lesson{ grid-template-columns:30px 140px 1fr }
       .subject{ font-size:16px }
     }
+    @media(max-width:360px){
+      .lesson{
+        grid-template-columns: 30px 140px;
+        grid-auto-rows: auto;
+      }
+      .lesson > :nth-child(3){
+        grid-column: 1 / -1;
+      }
+      .subject{
+        font-size:16px;
+        min-width: 88dvw; }
+    }
 
-    footer{margin:24px 0 8px; color:var(--muted); font-size:12px; text-align:center}
+    footer{margin:24px 0 8px; color:var(--muted); font-size:12px; text-align:center}{margin:24px 0 8px; color:var(--muted); font-size:12px; text-align:center}
   </style>
 </head>
 <body>
@@ -98,7 +119,7 @@
     <header>
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
-        <h1>Mobiilne Tunniplaan</h1>
+        <h1>Tunniplaan</h1>
       </div>
     </header>
 
@@ -122,7 +143,7 @@
     <div class="empty" id="empty" hidden>Vali õpperühm, et näha tunniplaani.</div>
 
     <footer>
-      Andmed: Tahvel (TP) API · Fookus: mobiil · Ei tee taustal uusi päringuid režiimivahetusel
+      
     </footer>
   </div>
 
@@ -163,7 +184,7 @@
   const LS_KEY = 'tahvel.group';
   let selectedGroup = null; // { uuid, name }
   let rawEvents = [];       // full week payload
-  let viewMode = 'week';    // 'today' | 'week'
+  let viewMode = 'today';    // 'today' | 'week'
   let activeDayIdx = null;  // 0..6 (Mon..Sun) when in 'today' mode we set to today's index
 
   // --- Dates: week (Mon-Sun) in UTC to match 'Z' examples
@@ -215,20 +236,62 @@
   // --- Lessons rendering
   function byStart(a,b){ return new Date(a.startDate||a.start||a.dateStart) - new Date(b.startDate||b.start||b.dateStart); }
   function normalizeEvent(ev){
-    // Try multiple common field names defensively
-    const start = new Date(ev.startDate || ev.start || ev.startTime || ev.dateTimeStart || ev.dateStart || ev.begin);
-    const end   = new Date(ev.endDate   || ev.end   || ev.endTime   || ev.dateTimeEnd   || ev.dateEnd   || ev.finish);
-    const subject = ev.name || ev.subject || ev.course || ev.title || ev.subjectName || (ev.lesson && ev.lesson.name) || 'Aine';
-    const room = (ev.rooms?.[0]?.roomCode) || ev.room || ev.location || ev.roomName || '';
-    const teachers = (ev.teachers?.map(t=> t.fullName || `${t.firstName||''} ${t.lastName||''}`.trim()).filter(Boolean) || []);
-    const teacher = teachers[0] || ev.teacher || '';
-    return { start, end, subject, room, teacher, raw:ev };
+    // Helper to combine date + time (fallbacks for various payload shapes)
+    const parseDateTime = (dateISO, timeStr) => {
+      if(!dateISO && !timeStr) return new Date(NaN);
+      if(dateISO && timeStr){
+        // dateISO typically like "2025-10-27T00:00:00Z"
+        const d = new Date(dateISO);
+        const [h=0,m=0] = String(timeStr).split(':').map(n=> parseInt(n,10) || 0);
+        // Construct exact moment using UTC components from the date and provided hh:mm.
+        // This matches many APIs that supply a UTC date + a local time string.
+        return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m, 0, 0));
+      }
+      // Fallback: try to parse any available timestamp-like fields
+      return new Date(dateISO || timeStr || NaN);
+    };
+
+    // Start / end (handle date + timeStart/timeEnd shape common in sample)
+    const start = ev.date ? parseDateTime(ev.date, ev.timeStart) :
+                  new Date(ev.startDate || ev.start || ev.dateStart || ev.begin || ev.date || NaN);
+    const end   = ev.date ? parseDateTime(ev.date, ev.timeEnd) :
+                  new Date(ev.endDate   || ev.end   || ev.dateEnd   || ev.finish || NaN);
+
+    // Subject/title
+    const subject = ev.nameEt || ev.nameEn || ev.name || ev.subject || ev.course || ev.title || ev.subjectName || (ev.lesson && ev.lesson.name) || 'Aine';
+
+    // Room
+    const room = (ev.rooms && ev.rooms[0] && (ev.rooms[0].roomCode || ev.rooms[0].room || ev.rooms[0].roomName)) ||
+                 ev.room || ev.location || ev.roomName || '';
+
+    // Teacher(s)
+    const teachersArr = Array.isArray(ev.teachers) ? ev.teachers.map(t=>{
+      return t.name || t.fullName || t.fullname || `${t.firstname||t.firstName||''} ${t.lastname||t.lastName||''}`.trim();
+    }).filter(Boolean) : [];
+    const teacher = teachersArr[0] || ev.teacher || '';
+
+    // Student group (code)
+    const group = (ev.studentGroups && ev.studentGroups[0] && (ev.studentGroups[0].code || ev.studentGroups[0].name || ev.studentGroups[0].uuid)) || '';
+
+    return { start, end, subject, room, teacher, group, raw: ev };
   }
   function sameDayTallinn(a,b){
     const at = toTallinn(a), bt = toTallinn(b);
     return at.getFullYear()===bt.getFullYear() && at.getMonth()===bt.getMonth() && at.getDate()===bt.getDate();
   }
   function isTodayTallinn(d){ return sameDayTallinn(d, new Date()); }
+  function classifyTiming(start, end){
+    // Returns 'current' if now is between start/end today; 'upcoming' if start is later today; otherwise ''
+    const now = new Date();
+    if(!isTodayTallinn(start)) return '';
+    const s = toTallinn(start).getTime();
+    const e = toTallinn(end).getTime();
+    const n = toTallinn(now).getTime();
+    if(!isFinite(s) || !isFinite(e)) return '';
+    if(n >= s && n <= e) return 'current';
+    if(n < s) return 'upcoming';
+    return '';
+  }
 
   function renderLessons(){
     lessonsEl.innerHTML='';
@@ -254,10 +317,11 @@
       const time = `${ev.start.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})}–${ev.end.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})}`;
       const date = ev.start.toLocaleDateString('et-EE',{day:'2-digit',month:'2-digit'});
       const isToday = viewMode==='week' && isTodayTallinn(ev.start);
-      card.className='lesson'+(isToday?' today':'');
+      const timing = classifyTiming(ev.start, ev.end);
+      card.className = 'lesson' + (isToday ? ' today' : '') + (timing==='current' ? ' is-current' : timing==='upcoming' ? ' is-upcoming' : '');
       card.innerHTML = `
+        <div class="weekday">${DAY_LETTERS[(toTallinn(ev.start).getDay()+6)%7]}</div>
         <div class="time">
-          <div>${DAY_LETTERS[(toTallinn(ev.start).getDay()+6)%7]}</div>
           <div>${date}</div>
           <div>${time}</div>
         </div>
@@ -298,10 +362,10 @@
       rawEvents = [];
       lessonsEl.innerHTML='';
       const d=document.createElement('div'); d.className='empty';
-      d.innerHTML = 'Tunniplaani laadimine ebaõnnestus.
-<br/>
+      d.innerHTML = `Tunniplaani laadimine ebaõnnestus.
+      <br/>
 Kui näed CORS viga, määra <code>PROXY</code> muutuja lehe alguses (vt kommentaar koodis) või testi arenduses CORS-bypassiga.<br/>
-Prod-keskkonnas on soovitus kasutada oma serveripoolset proksit.';
+Prod-keskkonnas on soovitus kasutada oma serveripoolset proksit.`;
       lessonsEl.appendChild(d);
     }finally{
       setLoading(false);
@@ -323,7 +387,7 @@ Prod-keskkonnas on soovitus kasutada oma serveripoolset proksit.';
     if(!items || !items.length){ suggest.classList.remove('show'); groupInput.setAttribute('aria-expanded','false'); return; }
     items.forEach((it, i)=>{
       const li=document.createElement('li');
-      li.innerHTML = `<div><strong>${escapeHtml(it.name||it.code||it.label||'Rühm')}</strong></div><small>${escapeHtml(it.studentGroup||it.studentGroupCode||'')}</small>`;
+      li.innerHTML = `<div><strong>${escapeHtml(it.nameEt||it.name||it.code||it.label||'Rühm')}</strong></div><small>${escapeHtml(it.studentGroup||it.studentGroupCode||'')}</small>`;
       li.addEventListener('click',()=> selectGroup(it));
       if(i===acIdx) li.classList.add('active');
       suggest.appendChild(li);
@@ -340,7 +404,7 @@ Prod-keskkonnas on soovitus kasutada oma serveripoolset proksit.';
       const data = await res.json();
       const list = (Array.isArray(data)? data : (data.content || data.results || []) ).map(row=>({
         uuid: row.studentGroupUuid || row.uuid || row.id,
-        name: row.studentGroup || row.name || row.code || 'Rühm',
+        name: row.nameEt || row.name || row.code || 'Rühm',
       })).filter(x=> x.uuid);
       acIdx=-1; showSuggest(list);
     }catch(err){ if(err.name!=='AbortError'){ console.warn(err); showSuggest([]); } }
