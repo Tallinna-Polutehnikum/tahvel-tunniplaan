@@ -205,9 +205,9 @@
         '</div>'+
         '<div>'+
           '<div class="subject">'+escapeHtml(ev.subject)+'</div>'+
-          '<div class="meta">'+
+            '<div class="meta">'+
             (ev.room? '<span>Ruum: '+escapeHtml(ev.room)+'</span>':'')+
-            (ev.teacher? '<span>Õpetaja: '+escapeHtml(ev.teacher)+'</span>':'')+
+            ((selected && selected.type==='teacher' && ev.group) ? '<span>Rühm: '+escapeHtml(ev.group)+'</span>' : (ev.teacher? '<span>Õpetaja: '+escapeHtml(ev.teacher)+'</span>':''))+
           '</div>'+
         '</div>';
       lessonsEl.appendChild(card);
