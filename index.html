@@ -157,10 +157,13 @@
   let activeDayIdx = null;
 
   // Dates
-  function toTallinn(date){ return new Date(date.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' })); }
+  function toTallinn(date){ 
+    // If the date is already in Europe/Tallinn timezone (from server), just return it
+    // The server sends times in Europe/Tallinn, so we don't need conversion
+    return date;
+  }
   function getWeek(date){ const t=toTallinn(date); const day=(t.getDay()+6)%7; const mon=new Date(t); mon.setDate(t.getDate()-day); mon.setHours(0,0,0,0); const sun=new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999); return {mon,sun}; }
   function fmtRange(mon, sun){ const f=d=> d.toLocaleDateString('et-EE',{day:'2-digit',month:'2-digit'}); return `${f(mon)} – ${f(sun)}`; }
-  function isoZ(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}.${String(d.getUTCMilliseconds()).padStart(3,'0')}Z`; }
 
   // Chips
   const DAY_LETTERS=['E','T','K','N','R','L','P'];
@@ -170,7 +173,16 @@
   // Events
   function byStart(a,b){ return new Date(a.startDate||a.start||a.dateStart) - new Date(b.startDate||b.start||b.dateStart); }
   function normalizeEvent(ev){
-    const parseDateTime=(dateISO,timeStr)=>{ if(!dateISO && !timeStr) return new Date(NaN); if(dateISO && timeStr){ const d=new Date(dateISO); const [h=0,m=0]=String(timeStr).split(':').map(n=>parseInt(n,10)||0); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),h,m,0,0)); } return new Date(dateISO || timeStr || NaN); };
+    const parseDateTime=(dateISO,timeStr)=>{ 
+      if(!dateISO && !timeStr) return new Date(NaN); 
+      if(dateISO && timeStr){ 
+        const d=new Date(dateISO); 
+        const [h=0,m=0]=String(timeStr).split(':').map(n=>parseInt(n,10)||0); 
+        // Server sends times in Europe/Tallinn timezone, so create local date instead of UTC
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0, 0); 
+      } 
+      return new Date(dateISO || timeStr || NaN); 
+    };
     const start = ev.date ? parseDateTime(ev.date, ev.timeStart) : new Date(ev.startDate||ev.start||ev.dateStart||ev.begin||ev.date||NaN);
     const end   = ev.date ? parseDateTime(ev.date, ev.timeEnd)   : new Date(ev.endDate  ||ev.end  ||ev.dateEnd  ||ev.finish||NaN);
     const subject = ev.nameEt || ev.nameEn || ev.name || ev.subject || ev.course || ev.title || ev.subjectName || (ev.lesson && ev.lesson.name) || 'Aine';
@@ -181,8 +193,27 @@
     return { start,end,subject,room,teacher,group, raw:ev };
   }
   function sameDayTallinn(a,b){ const at=toTallinn(a), bt=toTallinn(b); return at.getFullYear()===bt.getFullYear() && at.getMonth()===bt.getMonth() && at.getDate()===bt.getDate(); }
-  function isTodayTallinn(d){ return sameDayTallinn(d, new Date()); }
-  function classifyTiming(start,end){ const now=new Date(); if(!isTodayTallinn(start)) return ''; const s=toTallinn(start).getTime(); const e=toTallinn(end).getTime(); const n=toTallinn(now).getTime(); if(!isFinite(s)||!isFinite(e)) return ''; if(n>=s && n<=e) return 'current'; if(n<s) return 'upcoming'; return ''; }
+  function isTodayTallinn(d){ 
+    const now = new Date();
+    const tallinnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' }));
+    return sameDayTallinn(d, tallinnNow); 
+  }
+  function classifyTiming(start,end){ 
+    // Get current time in Europe/Tallinn timezone
+    const now = new Date();
+    const tallinnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' }));
+    
+    if(!isTodayTallinn(start)) return ''; 
+    
+    const s = start.getTime(); 
+    const e = end.getTime(); 
+    const n = tallinnNow.getTime(); 
+    
+    if(!isFinite(s)||!isFinite(e)) return ''; 
+    if(n>=s && n<=e) return 'current'; 
+    if(n<s) return 'upcoming'; 
+    return ''; 
+  }
 
   function renderLessons(){
     lessonsEl.innerHTML='';
@@ -198,7 +229,7 @@
       const timing=classifyTiming(ev.start,ev.end);
       card.className='lesson'+(isToday?' today':'')+(timing==='current'?' is-current':timing==='upcoming'?' is-upcoming':'');
       card.innerHTML=
-        '<div class="weekday">'+DAY_LETTERS[(toTallinn(ev.start).getDay()+6)%7]+'</div>'+
+        '<div class="weekday">'+DAY_LETTERS[(ev.start.getDay()+6)%7]+'</div>'+
         '<div class="time">'+
           '<div>'+date+'</div>'+
           '<div>'+time+'</div>'+
@@ -214,7 +245,22 @@
     }
   }
 
-  const week=(()=>{ const {mon,sun}=getWeek(new Date()); return {_mon:mon,_sun:sun, from: isoZ(new Date(Date.UTC(mon.getFullYear(),mon.getMonth(),mon.getDate(),0,0,0,0))), thru: isoZ(new Date(Date.UTC(sun.getFullYear(),sun.getMonth(),sun.getDate(),23,59,59,999)))}; })();
+  // Helper for UTC ISO format (needed for API)
+  function isoZ(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}.${String(d.getUTCMilliseconds()).padStart(3,'0')}Z`; }
+
+  const week=(()=>{ 
+    // Get current time in Europe/Tallinn timezone for display calculations
+    const now = new Date();
+    const tallinnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' }));
+    const {mon,sun}=getWeek(tallinnNow); 
+    
+    // For API calls, we need to convert the Tallinn dates back to UTC format
+    // The API expects UTC timestamps even though the data is Europe/Tallinn
+    const fromUTC = new Date(Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate(), 0, 0, 0, 0));
+    const thruUTC = new Date(Date.UTC(sun.getFullYear(), sun.getMonth(), sun.getDate(), 23, 59, 59, 999));
+    
+    return {_mon:mon,_sun:sun, from: isoZ(fromUTC), thru: isoZ(thruUTC)}; 
+  })();
   function updateWeekUI(){ weekRangeEl.textContent=fmtRange(week._mon,week._sun); renderChips(week._mon); }
 
   async function loadTimetable(){
@@ -294,7 +340,13 @@
   clearGroup.addEventListener('click',()=>{ groupInput.value=''; groupBox.classList.remove('has-value'); selected=null; localStorage.removeItem(LS_KEY); rawEvents=[]; renderLessons(); emptyEl.hidden=false; showSuggest([]); });
 
   // Toggles
-  btnToday.addEventListener('click',()=>{ viewMode='today'; activeDayIdx = ( (toTallinn(new Date()).getDay()+6)%7 ); updateView(); });
+  btnToday.addEventListener('click',()=>{ 
+    viewMode='today'; 
+    const now = new Date();
+    const tallinnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' }));
+    activeDayIdx = ( (tallinnNow.getDay()+6)%7 ); 
+    updateView(); 
+  });
   btnWeek.addEventListener('click',()=>{ viewMode='week'; updateView(); });
   function updateView(){ btnWeek.classList.toggle('primary', viewMode==='week'); btnToday.classList.toggle('primary', viewMode==='today'); markActiveChip(); renderLessons(); }
 
@@ -304,7 +356,9 @@
   // Init
   (function init(){
     updateWeekUI();
-    activeDayIdx = ( (toTallinn(new Date()).getDay()+6)%7 );
+    const now = new Date();
+    const tallinnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Tallinn' }));
+    activeDayIdx = ( (tallinnNow.getDay()+6)%7 );
     updateView();
     try{
       // backwards compat with old key
