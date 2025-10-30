@@ -112,7 +112,6 @@ async function autocomplete(value) {
 }
 
 async function search(selected){
-  console.log(selected);
   if(!selected) return;
     selectedSearch.value = selected;
     searchValue.value = selected.name; 
