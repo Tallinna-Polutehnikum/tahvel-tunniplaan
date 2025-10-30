@@ -134,7 +134,8 @@ async function search(selected){
       name: l.nameEt,
       room: l.rooms[0]?.roomCode,
       group: l.studentGroups[0]?.code,
-      teacher: l.teachers[0]?.name
+      teacher: l.teachers[0]?.name,
+      isToday: displayType.value === 'week' && DateTime.fromISO(l.date).hasSame(DateTime.now(), 'day')
     };
   });
 }

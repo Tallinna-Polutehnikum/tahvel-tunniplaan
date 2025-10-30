@@ -3,7 +3,7 @@ defineProps(['lessons']);
 </script>
 <template>
     <div class="grid" id="lessons">
-        <div class="lesson" v-for="lesson in lessons">
+        <div class="lesson" :class="{'today': lesson.isToday}" v-for="lesson in lessons">
             <!-- <div class="weekday">{{ DAY_LETTERS[(ev.start.getDay() + 6) % 7] }}</div> -->
             <div class="weekday">{{ lesson.day }}</div>
             <div class="time">
