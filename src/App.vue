@@ -10,17 +10,18 @@ Settings.defaultZone = 'Europe/Tallinn';
 // Constants
 const DAY_LETTERS = ['E', 'T', 'K', 'N', 'R', 'L', 'P']; // Mon-Sun
 
+const BASE_URL = 'https://tahveltp.edu.ee/hois_back';
 
-//   // Proxy
+// Proxy
 const API = {
-    groupSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/group/14?lang=ET&name=${encodeURIComponent(q)}`,
-    teacherSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/teacher/14?lang=ET&name=${encodeURIComponent(q)}`,
+    groupSearch: (q) => `${BASE_URL}/timetables/group/14?lang=ET&name=${encodeURIComponent(q)}`,
+    teacherSearch: (q) => `${BASE_URL}/timetables/teacher/14?lang=ET&name=${encodeURIComponent(q)}`,
     timetableByGroup: (from, thru, uuid) => (
-      `https://tahveltp.edu.ee/hois_back/timetableevents/timetableSearch?`+
+      `${BASE_URL}/timetableevents/timetableSearch?`+
       `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=14&size=200&studentGroups=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
     ),
     timetableByTeacher: (from, thru, uuid) => (
-      `https://tahveltp.edu.ee/hois_back/timetableevents/timetableSearch?`+
+      `${BASE_URL}/timetableevents/timetableSearch?`+
       `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=14&size=200&teachers=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
     ),
   };
