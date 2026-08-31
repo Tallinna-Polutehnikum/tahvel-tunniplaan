@@ -119,17 +119,19 @@
   </div>
 
 <script>
+const schoolId = 24;
+
 (function(){
   const API = {
-    groupSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/group/14?lang=ET&name=${encodeURIComponent(q)}`,
-    teacherSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/teacher/14?lang=ET&name=${encodeURIComponent(q)}`,
+    groupSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/group/${schoolId}?lang=ET&name=${encodeURIComponent(q)}`,
+    teacherSearch: (q) => `https://tahveltp.edu.ee/hois_back/timetables/teacher/${schoolId}?lang=ET&name=${encodeURIComponent(q)}`,
     timetableByGroup: ({from, thru, uuid}) => (
       `https://tahveltp.edu.ee/hois_back/timetableevents/timetableSearch?`+
-      `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=14&size=200&studentGroups=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
+      `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=${schoolId}&size=200&studentGroups=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
     ),
     timetableByTeacher: ({from, thru, uuid}) => (
       `https://tahveltp.edu.ee/hois_back/timetableevents/timetableSearch?`+
-      `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=14&size=200&teachers=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
+      `from=${encodeURIComponent(from)}&lang=ET&page=0&schoolId=${schoolId}&size=200&teachers=${encodeURIComponent(uuid)}&thru=${encodeURIComponent(thru)}`
     ),
   };
 
